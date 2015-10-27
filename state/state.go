@@ -131,6 +131,7 @@ func InitState(state *State, initialState StateDefinition) {
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockC, argtwo.Floor)
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockB, argtwo.BlockC)
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockA, argtwo.BlockB)
+
 	default:
 	}
 }
@@ -205,6 +206,20 @@ func (state *State) findWhatBlockIsOn(block uint16) uint16 {
 
 		if opCode == uint16(opcodes.OnOpCode) && argOne == block {
 			return argTwo
+		}
+	}
+
+	return uint16(argtwo.Blank)
+}
+
+func (state *State) findWhatIsOnBlock(block uint16) uint16 {
+	block = block >> 6
+
+	for _, pred := range state.predicates {
+		opCode, argOne, argTwo := opcodes.GetComponents(pred)
+
+		if opCode == uint16(opcodes.OnOpCode) && argTwo == block {
+			return argOne
 		}
 	}
 
@@ -337,8 +352,9 @@ func (state *State) FindApplications(pred uint16) []uint16 {
 			}
 		}
 	case uint16(opcodes.ClearOpCode):
+		top := state.findWhatIsOnBlock(argOne)
 		return []uint16{
-			uint16(opcodes.UnstackOpCode) | argOne, // Unstack(x, ?)
+			uint16(opcodes.UnstackOpCode) | top | argOne>>6, // Unstack(?, x)
 		}
 	default:
 		return nil

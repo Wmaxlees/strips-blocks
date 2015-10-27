@@ -11,12 +11,12 @@ import (
 func main() {
 	// Initialize the state structure
 	currentState := state.NewState()
-	state.InitState(currentState, state.InitialStateSimpleProblem)
+	state.InitState(currentState, state.InitialStateSussmanAnomalyProblem)
 	fmt.Println("Start State:")
 	currentState.Print()
 
 	goalState := state.NewState()
-	state.InitState(goalState, state.GoalStateSimpleProblem)
+	state.InitState(goalState, state.GoalStateSussmanAnomalyProblem)
 	fmt.Println("\nGoal State:")
 	goalState.Print()
 
