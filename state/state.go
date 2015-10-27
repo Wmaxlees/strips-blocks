@@ -31,7 +31,7 @@ func (state *State) Print() {
 			blockStacks = append(blockStacks, []uint16{(pred & uint16(argone.ArgOneMask)) >> 6})
 		}
 
-		if (pred & uint16(opcodes.OpCodeMask)) == uint16(opcodes.HoldingCodeOpCode) {
+		if (pred & uint16(opcodes.OpCodeMask)) == uint16(opcodes.HoldingOpCode) {
 			holding = pred & uint16(argone.ArgOneMask) >> 6
 		}
 	}
@@ -102,7 +102,7 @@ func InitState(state *State, initialState StateDefinition) {
 		state.AddPredicate(opcodes.ClearOpCode, argone.BlockD, argtwo.Blank) // Clear(D)
 
 		// Holding
-		state.AddPredicate(opcodes.HoldingCodeOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
+		state.AddPredicate(opcodes.HoldingOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
 
 	case InitialStateSussmanAnomalyProblem:
 		// First stack
@@ -115,7 +115,7 @@ func InitState(state *State, initialState StateDefinition) {
 		state.AddPredicate(opcodes.ClearOpCode, argone.BlockB, argtwo.Blank) // Clear(B)
 
 		// Holding
-		state.AddPredicate(opcodes.HoldingCodeOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
+		state.AddPredicate(opcodes.HoldingOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
 
 	case GoalStateSimpleProblem:
 		// First stack
@@ -142,7 +142,7 @@ func InitState(state *State, initialState StateDefinition) {
 // 		opCode, argOne, _ := opcodes.GetComponents(uint16(pred))
 
 // 		// Check if we have a Holding predicate
-// 		if opCode == uint16(opcodes.HoldingCodeOpCode) {
+// 		if opCode == uint16(opcodes.HoldingOpCode) {
 // 			if argOne != uint16(block) { // Block being held is not our block
 // 				return false
 // 			} else { // Block behing held is our block
@@ -226,25 +226,43 @@ func (state *State) findWhatIsOnBlock(block uint16) uint16 {
 	return uint16(argtwo.Blank)
 }
 
+func (state *State) findWhatIsBeingHeld() uint16 {
+	for _, pred := range state.predicates {
+		opCode, argOne, _ := opcodes.GetComponents(pred)
+
+		if opCode == uint16(opcodes.HoldingOpCode) {
+			return argOne
+		}
+	}
+
+	return 0
+}
+
 func (state *State) GetPreconditions(cmd uint16) []uint16 {
 	opCode, argOne, argTwo := opcodes.GetComponents(cmd)
 	switch opCode {
 	case uint16(opcodes.StackOpCode): // Stack(x,y)
-		return []uint16{
-			uint16(opcodes.HoldingCodeOpCode) | argOne, // Holding(x)
-			uint16(opcodes.ClearOpCode) | argTwo<<6,    // Clear(y)
+		if argTwo != uint16(argtwo.Floor) {
+			return []uint16{
+				uint16(opcodes.HoldingOpCode) | argOne | uint16(argtwo.Blank), // Holding(x)
+				uint16(opcodes.ClearOpCode) | argTwo<<6,                       // Clear(y)
+			}
+		} else {
+			return []uint16{
+				uint16(opcodes.HoldingOpCode) | argOne | uint16(argtwo.Blank), // Holding(x)
+			}
 		}
 	case uint16(opcodes.UnstackOpCode): // Unstack(x,y)
 		return []uint16{
-			uint16(opcodes.OnOpCode) | argOne | argTwo, // On(x,y)
-			uint16(opcodes.ClearOpCode) | argOne,       // Clear(x)
-			uint16(opcodes.HoldingCodeOpCode),          // Holding(nil)
+			uint16(opcodes.OnOpCode) | argOne | argTwo,                                  // On(x,y)
+			uint16(opcodes.ClearOpCode) | argOne,                                        // Clear(x)
+			uint16(opcodes.HoldingOpCode) | uint16(argone.Blank) | uint16(argtwo.Blank), // Holding(nil)
 		}
 	case uint16(opcodes.PickupOpCode): // Pickup(x)
 		return []uint16{
-			uint16(opcodes.ClearOpCode) | argOne,                     // Clear(x)
-			uint16(opcodes.OnOpCode) | argOne | uint16(argtwo.Floor), // On(x, Floor)
-			uint16(opcodes.HoldingCodeOpCode),                        // Holding(nil)
+			uint16(opcodes.ClearOpCode) | argOne,                                        // Clear(x)
+			uint16(opcodes.OnOpCode) | argOne | uint16(argtwo.Floor),                    // On(x, Floor)
+			uint16(opcodes.HoldingOpCode) | uint16(argone.Blank) | uint16(argtwo.Blank), // Holding(nil)
 		}
 	default:
 		return nil
@@ -257,19 +275,19 @@ func (state *State) getDeletes(cmd uint16) []uint16 {
 	switch opCode {
 	case uint16(opcodes.StackOpCode):
 		return []uint16{
-			uint16(opcodes.ClearOpCode) | argTwo<<6,    // Clear(y)
-			uint16(opcodes.HoldingCodeOpCode) | argOne, // Holding(x)
+			uint16(opcodes.ClearOpCode) | argTwo<<6, // Clear(y)
+			uint16(opcodes.HoldingOpCode) | argOne,  // Holding(x)
 		}
 	case uint16(opcodes.UnstackOpCode):
 		return []uint16{
 			uint16(opcodes.OnOpCode) | argOne | argTwo, // On(x,y)
-			uint16(opcodes.HoldingCodeOpCode),          // Holding(nil)
+			uint16(opcodes.HoldingOpCode),              // Holding(nil)
 			uint16(opcodes.ClearOpCode) | argOne,       // Clear(x)
 		}
 	case uint16(opcodes.PickupOpCode):
 		return []uint16{
 			uint16(opcodes.OnOpCode) | argOne | uint16(argtwo.Floor), // On(x, floor)
-			uint16(opcodes.HoldingCodeOpCode),                        // Holding(nil)
+			uint16(opcodes.HoldingOpCode),                            // Holding(nil)
 		}
 	default:
 		return nil
@@ -282,17 +300,18 @@ func (state *State) getApplications(cmd uint16) []uint16 {
 	switch opCode {
 	case uint16(opcodes.StackOpCode):
 		return []uint16{
-			uint16(opcodes.HoldingCodeOpCode),          // Holding(nil)
+			uint16(opcodes.HoldingOpCode),              // Holding(nil)
 			uint16(opcodes.OnOpCode) | argOne | argTwo, // On(x,y)
+			uint16(opcodes.ClearOpCode) | argOne,       // Clear(x)
 		}
 	case uint16(opcodes.UnstackOpCode):
 		return []uint16{
-			uint16(opcodes.HoldingCodeOpCode) | argOne, // Holding(x)
-			uint16(opcodes.ClearOpCode) | argTwo<<6,    // Clear(y)
+			uint16(opcodes.HoldingOpCode) | argOne,  // Holding(x)
+			uint16(opcodes.ClearOpCode) | argTwo<<6, // Clear(y)
 		}
 	case uint16(opcodes.PickupOpCode):
 		return []uint16{
-			uint16(opcodes.HoldingCodeOpCode) | argOne, // Holding(x)
+			uint16(opcodes.HoldingOpCode) | argOne, // Holding(x)
 		}
 	default:
 		return nil
@@ -334,10 +353,10 @@ func (state *State) FindApplications(pred uint16) []uint16 {
 		return []uint16{
 			uint16(opcodes.StackOpCode) | argOne | argTwo, // Stack(x,y) | Putdown(x)
 		}
-	case uint16(opcodes.HoldingCodeOpCode):
+	case uint16(opcodes.HoldingOpCode):
 		if argOne == uint16(argone.Blank) {
 			return []uint16{
-				uint16(opcodes.StackOpCode) | argOne | uint16(argtwo.Floor), // Putdown(x)
+				uint16(opcodes.StackOpCode) | state.findWhatIsBeingHeld() | uint16(argtwo.Floor), // Putdown(x)
 			}
 		} else {
 			base := state.findWhatBlockIsOn(argOne)

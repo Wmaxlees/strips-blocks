@@ -21,13 +21,43 @@ func main() {
 	goalState.Print()
 
 	stack := new(stripsstack.StripsStack)
-	stack.Append(goalState.GetPredicates())
+	fullList := make([]uint16, 0)
+	topOfStack := make([][]uint16, 0)
+	for _, predicate := range goalState.GetPredicates() {
+		topOfStack = append(topOfStack, []uint16{predicate})
+		fullList = append(fullList, predicate)
+	}
+	stack.Push(fullList)
+	stack.Append(topOfStack)
 	fmt.Println("\nStack:")
 	stack.Print()
 	fmt.Println()
 
 	for stack.GetLength() > 0 {
-		next := stack.Peek()
+		nextSlice := stack.Peek()
+
+		var next uint16
+		if len(nextSlice) == 1 {
+			next = nextSlice[0]
+		} else {
+			good := true
+			for _, pred := range nextSlice {
+				if !currentState.CheckPredicate(pred) {
+					stack.Push([]uint16{pred})
+					good = false
+				}
+			}
+
+			if good {
+				stack.Pop()
+			}
+
+			continue
+		}
+
+		fmt.Println("\n\n")
+		stack.Print()
+		fmt.Println()
 
 		if next&uint16(opcodes.NonActionMask) != uint16(opcodes.NonActionMask) {
 			fmt.Println("Performing Action")
@@ -39,11 +69,6 @@ func main() {
 		} else if currentState.CheckPredicate(next) {
 			fmt.Println("First item on stack is already in state")
 			stack.Pop()
-
-			stack.Print()
-
-			fmt.Println()
-
 		} else {
 			fmt.Println("First item on stack doesn't exist in current state")
 			possibilities := currentState.FindApplications(next)
@@ -52,14 +77,18 @@ func main() {
 				stack.Pop()
 
 				// TODO: Add in branching
-				stack.Push(possibilities[0])
-				stack.Append(currentState.GetPreconditions(possibilities[0]))
-				stack.Print()
+				stack.Push([]uint16{possibilities[0]})
 
-				fmt.Println()
+				fullList := make([]uint16, 0)
+				topOfStack := make([][]uint16, 0)
+				for _, predicate := range currentState.GetPreconditions(possibilities[0]) {
+					topOfStack = append(topOfStack, []uint16{predicate})
+					fullList = append(fullList, predicate)
+				}
+				stack.Push(fullList)
+				stack.Append(topOfStack)
 			} else {
 				fmt.Println("No Possible Moves")
-				stack.Print()
 				break
 			}
 		}
