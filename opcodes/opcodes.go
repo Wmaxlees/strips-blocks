@@ -16,13 +16,13 @@ const (
 type OpCode uint16
 
 const (
-	StackOpCode       OpCode = 0x1000 // 0 001 000000 000000
-	UnstackOpCode     OpCode = 0x2000 // 0 010 000000 000000
-	PickupOpCode      OpCode = 0x3000 // 0 011 000000 000000
-	PutdownOpCode     OpCode = 0x4000 // 0 100 000000 000000
-	OnOpCode          OpCode = 0x9000 // 1 001 000000 000000
-	HoldingCodeOpCode OpCode = 0xA000 // 1 010 000000 000000
-	ClearOpCode       OpCode = 0xB000 // 1 011 000000 000000
+	StackOpCode   OpCode = 0x1000 // 0 001 000000 000000
+	UnstackOpCode OpCode = 0x2000 // 0 010 000000 000000
+	PickupOpCode  OpCode = 0x3000 // 0 011 000000 000000
+	PutdownOpCode OpCode = 0x4000 // 0 100 000000 000000
+	OnOpCode      OpCode = 0x9000 // 1 001 000000 000000
+	HoldingOpCode OpCode = 0xA000 // 1 010 000000 000000
+	ClearOpCode   OpCode = 0xB000 // 1 011 000000 000000
 )
 
 func GetOpCode(cmd uint16) string {
@@ -35,7 +35,7 @@ func GetOpCode(cmd uint16) string {
 		return "Pickup"
 	case uint16(OnOpCode):
 		return "On"
-	case uint16(HoldingCodeOpCode):
+	case uint16(HoldingOpCode):
 		return "Holding"
 	case uint16(ClearOpCode):
 		return "Clear"
