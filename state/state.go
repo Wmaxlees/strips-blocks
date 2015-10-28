@@ -7,41 +7,34 @@ import (
 	"github.com/Wmaxlees/strips-blocks/opcodes"
 )
 
-type State struct {
-	predicates []uint16
-}
-
-func NewState() *State {
-	// Initialize the predicates
-	predicates := make([]uint16, 0)
-	return &State{predicates: predicates}
-}
-
-func (state *State) GetPredicates() []uint16 {
-	return state.predicates
-}
+type State []uint16
 
 // TODO: Make this more efficient
 func (state *State) Print() {
 	blockStacks := make([][]uint16, 0)
 	var holding uint16 = 0
-	// Get all the blocks on the table and find if there is a block behing held
-	for _, pred := range state.predicates {
-		if (pred&uint16(opcodes.OpCodeMask)) == uint16(opcodes.OnOpCode) && (pred&uint16(argtwo.ArgTwoMask)) == uint16(argtwo.Floor) {
-			blockStacks = append(blockStacks, []uint16{(pred & uint16(argone.ArgOneMask)) >> 6})
+	// Get all the blocks on the table and find if there is a block being held by arm
+	for _, pred := range *state {
+		if (pred&opcodes.OpCodeMask) == opcodes.OnOpCode && (pred&argtwo.ArgTwoMask) == argtwo.Floor {
+			blockStacks = append(blockStacks, []uint16{(pred & argone.ArgOneMask) >> 6})
 		}
 
-		if (pred & uint16(opcodes.OpCodeMask)) == uint16(opcodes.HoldingOpCode) {
-			holding = pred & uint16(argone.ArgOneMask) >> 6
+		if (pred & opcodes.OpCodeMask) == opcodes.HoldingOpCode {
+			holding = pred & argone.ArgOneMask >> 6
 		}
 	}
 
 	// Stack all the blocks on top of these
-	for i, stack := range blockStacks {
-		top := stack[len(stack)-1]
-		for _, pred := range state.predicates {
-			if pred&uint16(argtwo.ArgTwoMask) == top {
-				blockStacks[i] = append(stack, (pred&uint16(argone.ArgOneMask))>>6)
+	newBlocks := true
+	for newBlocks {
+		newBlocks = false
+		for i, stack := range blockStacks {
+			top := stack[len(stack)-1]
+			for _, pred := range *state {
+				if pred&argtwo.ArgTwoMask == top {
+					blockStacks[i] = append(stack, (pred&argone.ArgOneMask)>>6)
+					newBlocks = true
+				}
 			}
 		}
 	}
@@ -54,9 +47,25 @@ func (state *State) Print() {
 		}
 	}
 
+	// Print the holding indication
+	fmt.Println("___________")
+	if holding != 0 {
+		fmt.Printf(" %c\n%c%c%c\n[%c]\n\n", 0x2502, 0x250C, 0x2534, 0x2510, holding+64)
+	} else {
+		fmt.Printf(" %c\n%c%c%c\n\n", 0x2502, 0x250C, 0x2534, 0x2510)
+	}
+
 	// Print out the stacks from the top down
-	for i := stackHeight; i >= 0; i-- {
+	for i := stackHeight; i >= -1; i-- {
+
+		// Print blocks
 		for j := 0; j < len(blockStacks); j++ {
+			// Print the floor
+			if i == -1 {
+				fmt.Print("----")
+				continue
+			}
+
 			if len(blockStacks[j])-1 < i {
 				fmt.Print("    ")
 			} else {
@@ -65,11 +74,6 @@ func (state *State) Print() {
 		}
 		fmt.Println()
 	}
-
-	// Print the holding indication
-	if holding != 0 {
-		fmt.Printf("Holding: [%c]\n", holding+64)
-	}
 }
 
 type StateDefinition byte
@@ -77,12 +81,14 @@ type StateDefinition byte
 const (
 	InitialStateSimpleProblem         StateDefinition = iota
 	InitialStateSussmanAnomalyProblem StateDefinition = iota
+	InitialStateExtraProblem          StateDefinition = iota
 	GoalStateSimpleProblem            StateDefinition = iota
 	GoalStateSussmanAnomalyProblem    StateDefinition = iota
+	GoalStateExtraProblem             StateDefinition = iota
 )
 
-func (state *State) AddPredicate(opCode opcodes.OpCode, argOne argone.ArgOne, argTwo argtwo.ArgTwo) {
-	state.predicates = append(state.predicates, uint16(opCode)|uint16(argOne)|uint16(argTwo))
+func (state *State) AddPredicate(opCode uint16, argOne uint16, argTwo uint16) {
+	*state = append(*state, opCode|argOne|argTwo)
 }
 
 func InitState(state *State, initialState StateDefinition) {
@@ -117,6 +123,34 @@ func InitState(state *State, initialState StateDefinition) {
 		// Holding
 		state.AddPredicate(opcodes.HoldingOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
 
+	case InitialStateExtraProblem:
+		// First stack
+		state.AddPredicate(opcodes.ClearOpCode, argone.BlockI, argtwo.Blank)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockI, argtwo.BlockA)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockA, argtwo.BlockC)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockC, argtwo.BlockF)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockF, argtwo.Floor)
+
+		// Second stack
+		state.AddPredicate(opcodes.ClearOpCode, argone.BlockJ, argtwo.Blank)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockJ, argtwo.BlockB)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockB, argtwo.Floor)
+
+		// Third stack
+		state.AddPredicate(opcodes.ClearOpCode, argone.BlockH, argtwo.Blank)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockH, argtwo.BlockD)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockD, argtwo.Floor)
+
+		// Forth stack
+		state.AddPredicate(opcodes.ClearOpCode, argone.BlockL, argtwo.Blank)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockL, argtwo.BlockG)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockG, argtwo.BlockE)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockE, argtwo.BlockK)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockK, argtwo.Floor)
+
+		// Holding
+		state.AddPredicate(opcodes.HoldingOpCode, argone.Blank, argtwo.Blank) // Holding(nil)
+
 	case GoalStateSimpleProblem:
 		// First stack
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockA, argtwo.Floor)
@@ -132,31 +166,30 @@ func InitState(state *State, initialState StateDefinition) {
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockB, argtwo.BlockC)
 		state.AddPredicate(opcodes.OnOpCode, argone.BlockA, argtwo.BlockB)
 
+	case GoalStateExtraProblem:
+		// First stack
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockA, argtwo.BlockB)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockB, argtwo.BlockC)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockC, argtwo.BlockD)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockD, argtwo.Floor)
+
+		// Second stack
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockE, argtwo.BlockF)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockF, argtwo.BlockG)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockG, argtwo.BlockH)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockH, argtwo.Floor)
+
+		// Third stack
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockI, argtwo.BlockJ)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockJ, argtwo.BlockK)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockK, argtwo.BlockL)
+		state.AddPredicate(opcodes.OnOpCode, argone.BlockL, argtwo.Floor)
 	default:
 	}
 }
 
-// func (state *State) CheckHolding(block argone.ArgOne) bool {
-// 	for pred := range state.predicates {
-// 		// Get components
-// 		opCode, argOne, _ := opcodes.GetComponents(uint16(pred))
-
-// 		// Check if we have a Holding predicate
-// 		if opCode == uint16(opcodes.HoldingOpCode) {
-// 			if argOne != uint16(block) { // Block being held is not our block
-// 				return false
-// 			} else { // Block behing held is our block
-// 				return true
-// 			}
-// 		}
-// 	}
-
-// 	// No holding predicate exists
-// 	return false
-// }
-
 func (state *State) CheckPredicate(predicate uint16) bool {
-	for _, existingPred := range state.predicates {
+	for _, existingPred := range *state {
 		if uint16(existingPred) == predicate {
 			return true
 		}
@@ -165,72 +198,37 @@ func (state *State) CheckPredicate(predicate uint16) bool {
 	return false
 }
 
-// func (state *State) CheckOn(x argone.ArgOne, y argtwo.ArgTwo) bool {
-// 	// Generate the predicate
-// 	var check uint16 = uint16(opcodes.OnOpCode) & uint16(x) & uint16(y)
-
-// 	// Check if predicate exists
-// 	for pred := range state.predicates {
-// 		if uint16(pred) == check {
-// 			return true
-// 		}
-// 	}
-
-// 	// Didn't find the predicate
-// 	return false
-// }
-
-// func (state *State) CheckClear(block argone.ArgOne) bool {
-// 	for pred := range state.predicates {
-// 		// Get components
-// 		opCode, argOne, argTwo := opcodes.GetComponents(uint16(pred))
-
-// 		// Check if there is a Clear predicate
-// 		if opCode == uint16(opcodes.ClearOpCode) && argOne == uint16(block) {
-// 			return true
-// 		}
-
-// 		// Check if there is an on(x,y) predicate
-// 		if opCode == uint16(opcodes.OnOpCode) && argTwo == uint16(block)>>6 {
-// 			return false
-// 		}
-// 	}
-
-// 	// If we have reached here there is no On predicate that corresponds to block
-// 	return true
-// }
-
 func (state *State) findWhatBlockIsOn(block uint16) uint16 {
-	for _, pred := range state.predicates {
+	for _, pred := range *state {
 		opCode, argOne, argTwo := opcodes.GetComponents(pred)
 
-		if opCode == uint16(opcodes.OnOpCode) && argOne == block {
+		if opCode == opcodes.OnOpCode && argOne == block {
 			return argTwo
 		}
 	}
 
-	return uint16(argtwo.Blank)
+	return argtwo.Blank
 }
 
 func (state *State) findWhatIsOnBlock(block uint16) uint16 {
 	block = block >> 6
 
-	for _, pred := range state.predicates {
+	for _, pred := range *state {
 		opCode, argOne, argTwo := opcodes.GetComponents(pred)
 
-		if opCode == uint16(opcodes.OnOpCode) && argTwo == block {
+		if opCode == opcodes.OnOpCode && argTwo == block {
 			return argOne
 		}
 	}
 
-	return uint16(argtwo.Blank)
+	return argtwo.Blank
 }
 
 func (state *State) findWhatIsBeingHeld() uint16 {
-	for _, pred := range state.predicates {
+	for _, pred := range *state {
 		opCode, argOne, _ := opcodes.GetComponents(pred)
 
-		if opCode == uint16(opcodes.HoldingOpCode) {
+		if opCode == opcodes.HoldingOpCode {
 			return argOne
 		}
 	}
@@ -241,28 +239,28 @@ func (state *State) findWhatIsBeingHeld() uint16 {
 func (state *State) GetPreconditions(cmd uint16) []uint16 {
 	opCode, argOne, argTwo := opcodes.GetComponents(cmd)
 	switch opCode {
-	case uint16(opcodes.StackOpCode): // Stack(x,y)
-		if argTwo != uint16(argtwo.Floor) {
+	case opcodes.StackOpCode: // Stack(x,y)
+		if argTwo != argtwo.Floor {
 			return []uint16{
-				uint16(opcodes.HoldingOpCode) | argOne | uint16(argtwo.Blank), // Holding(x)
-				uint16(opcodes.ClearOpCode) | argTwo<<6,                       // Clear(y)
+				opcodes.HoldingOpCode | argOne | argtwo.Blank, // Holding(x)
+				opcodes.ClearOpCode | argTwo<<6,               // Clear(y)
 			}
 		} else {
 			return []uint16{
-				uint16(opcodes.HoldingOpCode) | argOne | uint16(argtwo.Blank), // Holding(x)
+				opcodes.HoldingOpCode | argOne | argtwo.Blank, // Holding(x)
 			}
 		}
-	case uint16(opcodes.UnstackOpCode): // Unstack(x,y)
+	case opcodes.UnstackOpCode: // Unstack(x,y)
 		return []uint16{
-			uint16(opcodes.OnOpCode) | argOne | argTwo,                                  // On(x,y)
-			uint16(opcodes.ClearOpCode) | argOne,                                        // Clear(x)
-			uint16(opcodes.HoldingOpCode) | uint16(argone.Blank) | uint16(argtwo.Blank), // Holding(nil)
+			opcodes.OnOpCode | argOne | argTwo,                  // On(x,y)
+			opcodes.ClearOpCode | argOne,                        // Clear(x)
+			opcodes.HoldingOpCode | argone.Blank | argtwo.Blank, // Holding(nil)
 		}
-	case uint16(opcodes.PickupOpCode): // Pickup(x)
+	case opcodes.PickupOpCode: // Pickup(x)
 		return []uint16{
-			uint16(opcodes.ClearOpCode) | argOne,                                        // Clear(x)
-			uint16(opcodes.OnOpCode) | argOne | uint16(argtwo.Floor),                    // On(x, Floor)
-			uint16(opcodes.HoldingOpCode) | uint16(argone.Blank) | uint16(argtwo.Blank), // Holding(nil)
+			opcodes.ClearOpCode | argOne,                        // Clear(x)
+			opcodes.OnOpCode | argOne | argtwo.Floor,            // On(x, Floor)
+			opcodes.HoldingOpCode | argone.Blank | argtwo.Blank, // Holding(nil)
 		}
 	default:
 		return nil
@@ -273,21 +271,21 @@ func (state *State) getDeletes(cmd uint16) []uint16 {
 	opCode, argOne, argTwo := opcodes.GetComponents(cmd)
 
 	switch opCode {
-	case uint16(opcodes.StackOpCode):
+	case opcodes.StackOpCode:
 		return []uint16{
-			uint16(opcodes.ClearOpCode) | argTwo<<6, // Clear(y)
-			uint16(opcodes.HoldingOpCode) | argOne,  // Holding(x)
+			opcodes.ClearOpCode | argTwo<<6, // Clear(y)
+			opcodes.HoldingOpCode | argOne,  // Holding(x)
 		}
-	case uint16(opcodes.UnstackOpCode):
+	case opcodes.UnstackOpCode:
 		return []uint16{
-			uint16(opcodes.OnOpCode) | argOne | argTwo, // On(x,y)
-			uint16(opcodes.HoldingOpCode),              // Holding(nil)
-			uint16(opcodes.ClearOpCode) | argOne,       // Clear(x)
+			opcodes.OnOpCode | argOne | argTwo, // On(x,y)
+			opcodes.HoldingOpCode,              // Holding(nil)
+			opcodes.ClearOpCode | argOne,       // Clear(x)
 		}
-	case uint16(opcodes.PickupOpCode):
+	case opcodes.PickupOpCode:
 		return []uint16{
-			uint16(opcodes.OnOpCode) | argOne | uint16(argtwo.Floor), // On(x, floor)
-			uint16(opcodes.HoldingOpCode),                            // Holding(nil)
+			opcodes.OnOpCode | argOne | argtwo.Floor, // On(x, floor)
+			opcodes.HoldingOpCode,                    // Holding(nil)
 		}
 	default:
 		return nil
@@ -298,20 +296,20 @@ func (state *State) getApplications(cmd uint16) []uint16 {
 	opCode, argOne, argTwo := opcodes.GetComponents(cmd)
 
 	switch opCode {
-	case uint16(opcodes.StackOpCode):
+	case opcodes.StackOpCode:
 		return []uint16{
-			uint16(opcodes.HoldingOpCode),              // Holding(nil)
-			uint16(opcodes.OnOpCode) | argOne | argTwo, // On(x,y)
-			uint16(opcodes.ClearOpCode) | argOne,       // Clear(x)
+			opcodes.HoldingOpCode,              // Holding(nil)
+			opcodes.OnOpCode | argOne | argTwo, // On(x,y)
+			opcodes.ClearOpCode | argOne,       // Clear(x)
 		}
-	case uint16(opcodes.UnstackOpCode):
+	case opcodes.UnstackOpCode:
 		return []uint16{
-			uint16(opcodes.HoldingOpCode) | argOne,  // Holding(x)
-			uint16(opcodes.ClearOpCode) | argTwo<<6, // Clear(y)
+			opcodes.HoldingOpCode | argOne,  // Holding(x)
+			opcodes.ClearOpCode | argTwo<<6, // Clear(y)
 		}
-	case uint16(opcodes.PickupOpCode):
+	case opcodes.PickupOpCode:
 		return []uint16{
-			uint16(opcodes.HoldingOpCode) | argOne, // Holding(x)
+			opcodes.HoldingOpCode | argOne, // Holding(x)
 		}
 	default:
 		return nil
@@ -326,16 +324,16 @@ func (state *State) Execute(cmd uint16) bool {
 	// }
 
 	for _, predToDelete := range state.getDeletes(cmd) {
-		for i, pred := range state.predicates {
+		for i, pred := range *state {
 			if pred == predToDelete {
-				state.predicates = append(state.predicates[:i], state.predicates[i+1:]...)
+				*state = append((*state)[:i], (*state)[i+1:]...)
 				break
 			}
 		}
 	}
 
 	// Apply new predicates
-	state.predicates = append(state.predicates, state.getApplications(cmd)...)
+	*state = append(*state, state.getApplications(cmd)...)
 
 	// fmt.Println("\n\n\n\n\n\nAfter: ")
 	// for _, del := range state.predicates {
@@ -349,31 +347,31 @@ func (state *State) FindApplications(pred uint16) []uint16 {
 	opCode, argOne, argTwo := opcodes.GetComponents(pred)
 
 	switch opCode {
-	case uint16(opcodes.OnOpCode):
+	case opcodes.OnOpCode:
 		return []uint16{
-			uint16(opcodes.StackOpCode) | argOne | argTwo, // Stack(x,y) | Putdown(x)
+			opcodes.StackOpCode | argOne | argTwo, // Stack(x,y) | Putdown(x)
 		}
-	case uint16(opcodes.HoldingOpCode):
-		if argOne == uint16(argone.Blank) {
+	case opcodes.HoldingOpCode:
+		if argOne == argone.Blank {
 			return []uint16{
-				uint16(opcodes.StackOpCode) | state.findWhatIsBeingHeld() | uint16(argtwo.Floor), // Putdown(x)
+				opcodes.StackOpCode | state.findWhatIsBeingHeld() | argtwo.Floor, // Putdown(x)
 			}
 		} else {
 			base := state.findWhatBlockIsOn(argOne)
-			if base == uint16(argtwo.Blank) {
+			if base == argtwo.Blank {
 				return []uint16{
-					uint16(opcodes.PickupOpCode) | argOne, // Pickup(x)
+					opcodes.PickupOpCode | argOne, // Pickup(x)
 				}
 			} else {
 				return []uint16{
-					uint16(opcodes.UnstackOpCode) | argOne | base, // Unstack(x, ?)
+					opcodes.UnstackOpCode | argOne | base, // Unstack(x, ?)
 				}
 			}
 		}
-	case uint16(opcodes.ClearOpCode):
+	case opcodes.ClearOpCode:
 		top := state.findWhatIsOnBlock(argOne)
 		return []uint16{
-			uint16(opcodes.UnstackOpCode) | top | argOne>>6, // Unstack(?, x)
+			opcodes.UnstackOpCode | top | argOne>>6, // Unstack(?, x)
 		}
 	default:
 		return nil
