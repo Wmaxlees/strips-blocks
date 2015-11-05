@@ -317,12 +317,6 @@ func (state *State) getApplications(cmd uint16) []uint16 {
 }
 
 func (state *State) Execute(cmd uint16) bool {
-	// Delete the delete items first
-	// fmt.Println("\n\n\n\n\n\nBefore: ")
-	// for _, del := range state.predicates {
-	// 	opcodes.PrintPredicate(del)
-	// }
-
 	for _, predToDelete := range state.getDeletes(cmd) {
 		for i, pred := range *state {
 			if pred == predToDelete {
@@ -334,11 +328,6 @@ func (state *State) Execute(cmd uint16) bool {
 
 	// Apply new predicates
 	*state = append(*state, state.getApplications(cmd)...)
-
-	// fmt.Println("\n\n\n\n\n\nAfter: ")
-	// for _, del := range state.predicates {
-	// 	opcodes.PrintPredicate(del)
-	// }
 
 	return true
 }
