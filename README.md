@@ -13,3 +13,14 @@ STRIPS method for the block problem
 ### Installing and Running Strips-Blocks
 1. Type `go install github.com/Wmaxlees/strips-blocks` to download the source into your go workspace and compile the source into an executable in your go bin folder
 2. Type `$GOPATH/bin/strips-blocks' to run the newly compiled executable
+
+## Command Line Options
+
+The program will run just fine without any command line arguments but for full functionality, use the following:
+
+-verbose: Tells the program to show the Strips Stack as it determines which blocks to move
+
+-problem <int>: Tells the program which blocks problem to attempt to solve.
+    1 : Simple Blocks Problem
+    2 : Sussman Anomaly
+    3 : Extra Problem
